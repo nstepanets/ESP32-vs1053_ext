@@ -2566,22 +2566,33 @@ bool VS1053::httpPrint(const char* host) {
 //---------------------------------------------------------------------------------------------------------------------
 void VS1053::loadUserCode(void) {
 
-    if(ssVer != 4) return;
+    const uint16_t* plugin = nullptr;
+    int pugin_size = 0;
+    if (ssVer == 4) {
+        plugin = flac_plugin;
+        pugin_size = VS1053_PLUGIN_SIZE;
+    } else if (ssVer == 6) {
+        plugin = vs1063_plugin;
+        pugin_size = VS1063_PLUGIN_SIZE;
+    } else {
+        return;
+    }
+
     int i = 0;
 
-    while (i<sizeof(flac_plugin)/sizeof(flac_plugin[0])) {
+    while (i < pugin_size) {
         unsigned short addr, n, val;
-        addr = flac_plugin[i++];
-        n = flac_plugin[i++];
+        addr = plugin[i++];
+        n = plugin[i++];
         if (n & 0x8000U) { /* RLE run, replicate n samples */
             n &= 0x7FFF;
-            val = flac_plugin[i++];
+            val = plugin[i++];
             while (n--) {
                 write_register(addr, val);
             }
         } else {           /* Copy run, copy n samples */
             while (n--) {
-                val = flac_plugin[i++];
+                val = plugin[i++];
                 write_register(addr, val);
             }
         }
