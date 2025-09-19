@@ -8,7 +8,9 @@
 
 #include "vs1053_ext.h"
 
-#define LOAD_VS0153_PLUGIN  // load patch (FLAC and VU meter)
+#ifndef VS_PATCH_ENABLE
+#define VS_PATCH_ENABLE  true // load patch (FLAC and VU meter)
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------
 AudioBuffer::AudioBuffer(size_t maxBlockSize) {
@@ -325,6 +327,9 @@ void VS1053::begin(){
 
     // Init SPI in slow mode (0.2 MHz)
     VS1053_SPI = SPISettings(200000, MSBFIRST, SPI_MODE0);
+    // Check VS10xx type: SS_VER is 0 for VS1001, 1 for VS1011, 2 for VS1002, 3 for VS1003,
+    // 4 for VS1053 and VS8053, 5 for VS1033, 6 for VS1063/VS1163, 7 for VS1103, and 8 for VS1073
+    ssVer = ((read_register(SCI_STATUS) >> 4) & 15);
     // printDetails("Right after reset/startup");
     // Most VS1053 modules will start up in midi mode.  The result is that there is no audio
     // when playing MP3.  You can modify the board, but there is a more elegant way:
@@ -343,15 +348,14 @@ void VS1053::begin(){
     await_data_request();
     m_endFillByte = wram_read(0x1E06) & 0xFF;
 
-    #ifdef LOAD_VS0153_PLUGIN
-        loadUserCode(); // flac patch, does not work with all boards, try it
-        m_f_VUmeter = true;
-    #endif
+    if (VS_PATCH_ENABLE) loadUserCode(); // flac patch, does not work with all boards, try it
 
-    uint16_t status = read_register(SCI_STATUS);
-    if(status){
-        write_register(SCI_STATUS, status | _BV(9));
-        m_f_VUmeter = true;
+    if(ssVer == 4 && VS_PATCH_ENABLE) {
+        uint16_t status = read_register(SCI_STATUS);
+        if(status) {
+            write_register(SCI_STATUS, status | _BV(9));
+            m_f_VUmeter = true;
+        }
     }
 
 }
@@ -451,6 +455,15 @@ void VS1053::softReset()
 void VS1053::printDetails(const char* str){
 
     if(strlen(str) && vs1053_info) vs1053_info(str);
+
+    /* Note: code SS_VER=2 is used for both VS1002 and VS1011e */
+    const uint16_t chipNumber[16] = {1001, 1011, 1011, 1003, 1053, 1033, 1063, 1103, 1073, 0, 0, 0, 0, 0, 0, 0};
+    if (chipNumber[ssVer]) {
+        sprintf(m_chbuf, "Chip is VS%d, SCI_MODE field SS_VER = %d", chipNumber[ssVer], ssVer);
+    } else {
+        sprintf(m_chbuf, "Unknown VS10xx, SCI_MODE field SS_VER = %d", ssVer);
+    }
+    if (vs1053_info) vs1053_info(m_chbuf);
 
     char decbuf[16][6];
     char hexbuf[16][5];
@@ -2552,25 +2565,27 @@ bool VS1053::httpPrint(const char* host) {
 }
 //---------------------------------------------------------------------------------------------------------------------
 void VS1053::loadUserCode(void) {
-  int i = 0;
 
-  while (i<sizeof(flac_plugin)/sizeof(flac_plugin[0])) {
-    unsigned short addr, n, val;
-    addr = flac_plugin[i++];
-    n = flac_plugin[i++];
-    if (n & 0x8000U) { /* RLE run, replicate n samples */
-      n &= 0x7FFF;
-      val = flac_plugin[i++];
-      while (n--) {
-        write_register(addr, val);
-      }
-    } else {           /* Copy run, copy n samples */
-      while (n--) {
-        val = flac_plugin[i++];
-        write_register(addr, val);
-      }
+    if(ssVer != 4) return;
+    int i = 0;
+
+    while (i<sizeof(flac_plugin)/sizeof(flac_plugin[0])) {
+        unsigned short addr, n, val;
+        addr = flac_plugin[i++];
+        n = flac_plugin[i++];
+        if (n & 0x8000U) { /* RLE run, replicate n samples */
+            n &= 0x7FFF;
+            val = flac_plugin[i++];
+            while (n--) {
+                write_register(addr, val);
+            }
+        } else {           /* Copy run, copy n samples */
+            while (n--) {
+                val = flac_plugin[i++];
+                write_register(addr, val);
+            }
+        }
     }
-  }
 }
 
 //---------------------------------------------------------------------------------------------------------------------

@@ -220,6 +220,7 @@ private:
     bool            m_f_unsync = false;
     bool            m_f_exthdr = false;             // ID3 extended header
     bool            m_f_VUmeter = false;            // true if VUmeter is enabled
+    uint16_t        ssVer = 0;
 
 protected:
 
