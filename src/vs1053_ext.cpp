@@ -8,7 +8,9 @@
 
 #include "vs1053_ext.h"
 
-#define LOAD_VS0153_PLUGIN  // load patch (FLAC and VU meter)
+#ifndef VS_PATCH_ENABLE
+#define VS_PATCH_ENABLE  true // load patch (FLAC and VU meter)
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------
 AudioBuffer::AudioBuffer(size_t maxBlockSize) {
@@ -325,6 +327,9 @@ void VS1053::begin(){
 
     // Init SPI in slow mode (0.2 MHz)
     VS1053_SPI = SPISettings(200000, MSBFIRST, SPI_MODE0);
+    // Check VS10xx type: SS_VER is 0 for VS1001, 1 for VS1011, 2 for VS1002, 3 for VS1003,
+    // 4 for VS1053 and VS8053, 5 for VS1033, 6 for VS1063/VS1163, 7 for VS1103, and 8 for VS1073
+    ssVer = ((read_register(SCI_STATUS) >> 4) & 15);
     // printDetails("Right after reset/startup");
     // Most VS1053 modules will start up in midi mode.  The result is that there is no audio
     // when playing MP3.  You can modify the board, but there is a more elegant way:
@@ -336,22 +341,36 @@ void VS1053::begin(){
     // Switch on the analog parts
     write_register(SCI_AUDATA, 44100 + 1);                  // 44.1kHz + stereo
     // The next clocksetting allows SPI clocking at 5 MHz, 4 MHz is safe then.
-    write_register(SCI_CLOCKF, 6 << 12);                    // Normal clock settings multiplyer 3.0=12.2 MHz
+    uint16_t clockConfig;
+    switch (ssVer) {
+        case 3:                             // VS1003
+            clockConfig = 0x8000 | 0x1000;  // SC_MULT=3.0×, SC_ADD=1.0×
+            break;
+        case 6:                             // VS1063
+            clockConfig = 0x8000 | 0x1000;  // SC_MULT=3.5×, SC_ADD=1.5×
+            break;
+        case 8:                             // VS1073
+            clockConfig = 0x8000;           // SC_MULT=5.5×
+            break;
+        default:                            // VS1053
+            clockConfig = 0x6000 | 0x0800;  // SC_MULT=3.0×, SC_ADD=1.0×
+            break;
+    }
+    write_register(SCI_CLOCKF, clockConfig);
     VS1053_SPI = SPISettings(6700000, MSBFIRST, SPI_MODE0); // SPIDIV 12 -> 80/12=6.66 MHz
     write_register(SCI_MODE, _BV (SM_SDINEW) | _BV(SM_LINE1));
 
     await_data_request();
     m_endFillByte = wram_read(0x1E06) & 0xFF;
 
-    #ifdef LOAD_VS0153_PLUGIN
-        loadUserCode(); // flac patch, does not work with all boards, try it
-        m_f_VUmeter = true;
-    #endif
+    if (VS_PATCH_ENABLE) loadUserCode(); // flac patch, does not work with all boards, try it
 
-    uint16_t status = read_register(SCI_STATUS);
-    if(status){
-        write_register(SCI_STATUS, status | _BV(9));
-        m_f_VUmeter = true;
+    if(ssVer == 4 && VS_PATCH_ENABLE) {
+        uint16_t status = read_register(SCI_STATUS);
+        if(status) {
+            write_register(SCI_STATUS, status | _BV(9));
+            m_f_VUmeter = true;
+        }
     }
 
 }
@@ -451,6 +470,14 @@ void VS1053::softReset()
 void VS1053::printDetails(const char* str){
 
     if(strlen(str) && vs1053_info) vs1053_info(str);
+
+    const uint16_t chipNumber[16] = {0, 0, 0, 1003, 1053, 0, 1063, 0, 1073, 0, 0, 0, 0, 0, 0, 0};
+    if (ssVer < 16 && chipNumber[ssVer]) {
+        sprintf(chbuf, "Chip is VS%d", chipNumber[ssVer]);
+    } else {
+        sprintf(chbuf, "Unknown VS10xx SCI_MODE field SS_VER = %d", ssVer);
+    }
+    if (vs1053_info) vs1053_info(chbuf);
 
     char decbuf[16][6];
     char hexbuf[16][5];
@@ -2552,6 +2579,9 @@ bool VS1053::httpPrint(const char* host) {
 }
 //---------------------------------------------------------------------------------------------------------------------
 void VS1053::loadUserCode(void) {
+
+  if(ssVer != 4) return;
+
   int i = 0;
 
   while (i<sizeof(flac_plugin)/sizeof(flac_plugin[0])) {
