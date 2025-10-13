@@ -3518,6 +3518,11 @@ bool VS1053::ts_parsePacket(uint8_t* packet, uint8_t* packetStart, uint8_t* pack
                 PES_DataLength -= (PES_HeaderDataLength + 3);
                 return true;
             }
+            if(firstByte == 0 && secondByte == 0 && thirdByte == 0){
+                // PES packet startcode prefix is 0x000000
+                // skip such packets
+                return true;
+            }
         }
         *packetStart = 0;
         *packetLength = 0;
