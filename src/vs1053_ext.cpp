@@ -2856,6 +2856,7 @@ void VS1053::unicode2utf8(char* buff, uint32_t len){
 int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
 
     static size_t id3Size;
+    static size_t totalId3Size; // if we have more header, id3_1_size + id3_2_size + ....
     static size_t remainingHeaderBytes;
     static size_t universal_tmp = 0;
     static uint8_t ID3version;
@@ -2863,12 +2864,12 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
     static char frameid[5];
     static size_t framesize = 0;
     static bool compressed = false;
-    static bool APIC_seen = false;
-    static size_t APIC_size = 0;
-    static uint32_t APIC_pos = 0;
+    static size_t   APIC_size[3] = {0};
+    static uint32_t APIC_pos[3] = {0};
     static bool SYLT_seen = false;
     static size_t SYLT_size = 0;
     static uint32_t SYLT_pos = 0;
+    static uint8_t  numID3Header = 0;
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_controlCounter == 0){      /* read ID3 tag and ID3 header size */
         if(getDatamode() == AUDIO_LOCALFILE){
@@ -2878,7 +2879,6 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
             if(vs1053_info) vs1053_info(m_chbuf);
         }
         m_controlCounter ++;
-        APIC_seen = false;
         SYLT_seen = false;
         remainingHeaderBytes = 0;
         ehsz = 0;
@@ -3015,9 +3015,9 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
             // log_d("framesize=%i", framesize);
             isUnicode = false;
             if(getDatamode() == AUDIO_LOCALFILE){
-                APIC_seen = true;
-                APIC_pos = id3Size - remainingHeaderBytes;
-                APIC_size = framesize;
+                APIC_pos[numID3Header] = totalId3Size + id3Size - remainingHeaderBytes;
+                APIC_size[numID3Header] = framesize;
+                log_e("APIC_pos %i APIC_size %i", APIC_pos[numID3Header], APIC_size[numID3Header]);
             }
             return 0;
         }
@@ -3087,10 +3087,9 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         m_chbuf[0] = 0;
         if(startsWith(frameid, "PIC")) { // image embedded in header
             if(getDatamode() == AUDIO_LOCALFILE){
-                APIC_seen = true;                       // #460
-                APIC_pos = id3Size - remainingHeaderBytes;
-                APIC_size = universal_tmp;
-                if(m_f_Log) log_i("Attached picture seen at pos %d length %d", APIC_pos, APIC_size);
+                APIC_pos[numID3Header] = id3Size - remainingHeaderBytes;
+                APIC_size[numID3Header] = universal_tmp;
+                if(m_f_Log) log_i("Attached picture seen at pos %d length %d", APIC_pos[0], APIC_size[0]);
             }
         }
         else if(startsWith(frameid, "SLT")) { // lyrics embedded in header
@@ -3131,6 +3130,8 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         vTaskDelay(30);
         if((*(data + 0) == 'I') && (*(data + 1) == 'D') && (*(data + 2) == '3')) {
             m_controlCounter = 0;
+            numID3Header ++;
+            totalId3Size += id3Size;
             return 0;
         }
         else {
@@ -3138,9 +3139,9 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
             m_audioDataSize = m_contentlength - m_audioDataStart;
             sprintf(m_chbuf, "Audio-Length: %u", m_audioDataSize);
             if(!m_f_m3u8data) if(vs1053_info) vs1053_info(m_chbuf);
-            if(APIC_seen && vs1053_id3image) {
+            if(APIC_pos[0] && vs1053_id3image) { // if we have more than one APIC, output the first only
                 size_t pos = audiofile.position();
-                vs1053_id3image(audiofile, APIC_pos, APIC_size);
+                vs1053_id3image(audiofile, APIC_pos[0], APIC_size[0]);
                 audiofile.seek(pos); // the filepointer could have been changed by the user, set it back
             }
             if(SYLT_seen && vs1053_id3lyrics){
@@ -3148,6 +3149,9 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
                 vs1053_id3lyrics(audiofile, SYLT_pos, SYLT_size);
                 audiofile.seek(pos); // the filepointer could have been changed by the user, set it back
             }
+            numID3Header = 0;
+            for(int i = 0; i< 3; i++) APIC_pos[i] = 0; // delete all
+            for(int i = 0; i< 3; i++) APIC_size[i] = 0; // delete all
             return 0;
         }
     }
