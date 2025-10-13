@@ -1600,6 +1600,14 @@ const char* VS1053::parsePlaylist_M3U8() {
                         m_playlistURL.insert(m_playlistURL.begin(), strdup(tmp));
                         xMedSeq++;
                     }
+                    else{
+                        lltoa(xMedSeq + 1, llasc, 10);
+                        if(indexOf(tmp, llasc) > 0) {
+                            m_playlistURL.insert(m_playlistURL.begin(), strdup(tmp));
+                            log_w("mediaseq %llu skipped", xMedSeq);
+                            xMedSeq+= 2;
+                        }
+                    }
                 }
                 else{ // without mediaSeqNr, with hash
                     uint32_t hash = simpleHash(tmp);
@@ -1679,6 +1687,7 @@ const char* VS1053::parsePlaylist_M3U8() {
             } // f_medSeq_found
         }
     }
+    playAudioData(); // avoid audio gap
     return NULL;
 }
 //---------------------------------------------------------------------------------------------------------------------
