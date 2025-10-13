@@ -1788,7 +1788,7 @@ bool VS1053::STfromEXTINF(char* str){
         if(t2 < 0 || t2 > t3) return false;
         n1 = t3 - t2;
         strncpy(m_chbuf + n0, str + t2, n1);
-        m_chbuf[n1] = '\0';
+        m_chbuf[n0 + n1] = '\0';
     }
 
     t1 = indexOf(str, "artist", 0);
@@ -1800,7 +1800,6 @@ bool VS1053::STfromEXTINF(char* str){
         n2 = t3 - t2;
         strncpy(m_chbuf + n0 + n1, str + t2, n2);
         m_chbuf[n0 + n1 + n2] = '\0';
-        m_chbuf[n2] = '\0';
     }
     return true;
 }
