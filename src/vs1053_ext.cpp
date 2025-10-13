@@ -2787,8 +2787,9 @@ void VS1053::unicode2utf8(char* buff, uint32_t len){
 //---------------------------------------------------------------------------------------------------------------------
 int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
 
-    static size_t headerSize;
     static size_t id3Size;
+    static size_t remainingHeaderBytes;
+    static size_t universal_tmp = 0;
     static uint8_t ID3version;
     static int ehsz = 0;
     static char frameid[5];
@@ -2807,7 +2808,7 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         }
         m_controlCounter ++;
         APIC_seen = false;
-        headerSize = 0;
+        remainingHeaderBytes = 0;
         ehsz = 0;
         if(specialIndexOf(data, "ID3", 4) != 0) { // ID3 not found
             if(!m_f_m3u8data) if(vs1053_info) vs1053_info("file has no mp3 tag, skip metadata");
@@ -2841,8 +2842,8 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         if(ID3version == 2){
             m_controlCounter = 10;
         }
-        headerSize = id3Size;
-        headerSize -= 10;
+        remainingHeaderBytes = id3Size;
+        remainingHeaderBytes -= 10;
 
         return 10;
     }
@@ -2852,7 +2853,7 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         if(m_f_exthdr) {
             if(vs1053_info) vs1053_info("ID3 extended header");
             ehsz =  bigEndian(data, 4);
-            headerSize -= 4;
+            remainingHeaderBytes -= 4;
             ehsz -= 4;
             return 4;
         }
@@ -2865,16 +2866,16 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
     if(m_controlCounter == 2){      // skip extended header if exists
         if(ehsz > 256) {
             ehsz -=256;
-            headerSize -= 256;
+            remainingHeaderBytes -= 256;
             return 256;} // Throw it away
         else           {
             m_controlCounter ++;
-            headerSize -= ehsz;
+            remainingHeaderBytes -= ehsz;
             return ehsz;} // Throw it away
     }
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_controlCounter == 3){      // read a ID3 frame, get the tag
-        if(headerSize == 0){
+        if(remainingHeaderBytes == 0){
             m_controlCounter = 99;
             return 0;
         }
@@ -2884,7 +2885,7 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         frameid[2] = *(data + 2);
         frameid[3] = *(data + 3);
         frameid[4] = 0;
-        headerSize -= 4;
+        remainingHeaderBytes -= 4;
         if(frameid[0] == 0 && frameid[1] == 0 && frameid[2] == 0 && frameid[3] == 0) {
             // We're in padding
             m_controlCounter = 98;  // all ID3 metadata processed
@@ -2901,18 +2902,18 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
         else {
             framesize = bigEndian(data, 4);  // << 8
         }
-        headerSize -= 4;
+        remainingHeaderBytes -= 4;
         uint8_t flag = *(data + 4); // skip 1st flag
         (void) flag;
-        headerSize--;
+        remainingHeaderBytes--;
         compressed = (*(data + 5)) & 0x80; // Frame is compressed using [#ZLIB zlib] with 4 bytes for 'decompressed
                                            // size' appended to the frame header.
-        headerSize--;
+        remainingHeaderBytes--;
         uint32_t decompsize = 0;
         if(compressed){
             log_d("iscompressed");
             decompsize = bigEndian(data + 6, 4);
-            headerSize -= 4;
+            remainingHeaderBytes -= 4;
             (void) decompsize;
             log_d("decompsize=%u", decompsize);
             return 6 + 4;
@@ -2923,12 +2924,12 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
     if(m_controlCounter == 5){      // If the frame is larger than 256 bytes, skip the rest
         if(framesize > 256){
             framesize -= 256;
-            headerSize -= 256;
+            remainingHeaderBytes -= 256;
             return 256;
         }
         else {
             m_controlCounter = 3; // check next frame
-            headerSize -= framesize;
+            remainingHeaderBytes -= framesize;
             return framesize;
         }
     }
@@ -2944,7 +2945,7 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
             isUnicode = false;
             if(getDatamode() == AUDIO_LOCALFILE){
                 APIC_seen = true;
-                APIC_pos = id3Size - headerSize;
+                APIC_pos = id3Size - remainingHeaderBytes;
                 APIC_size = framesize;
             }
             return 0;
@@ -2956,7 +2957,7 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
             value[i] = *(data + i);
         }
         framesize -= fs;
-        headerSize -= fs;
+        remainingHeaderBytes -= fs;
         value[fs] = 0;
         if(isUnicode && fs > 1) {
             unicode2utf8(value, fs);   // convert unicode to utf-8 U+0020...U+07FF
@@ -2980,25 +2981,43 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
     }
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    // -- section V2.2 only , greater Vers above ----
+    // --- section V2.2 only , greater Vers above ----
+    // see https://mutagen-specs.readthedocs.io/en/latest/id3/id3v2.2.html
     if(m_controlCounter == 10){ // frames in V2.2, 3bytes identifier, 3bytes size descriptor
+        if(universal_tmp > 0){
+            if( universal_tmp > 256) { universal_tmp -= 256; return 256;}
+            else{ uint8_t t = universal_tmp; universal_tmp = 0; return t;}
+        }
+
         frameid[0] = *(data + 0);
         frameid[1] = *(data + 1);
         frameid[2] = *(data + 2);
         frameid[3] = 0;
-        headerSize -= 3;
+        remainingHeaderBytes -= 3;
         size_t len = bigEndian(data + 3, 3);
-        headerSize -= 3;
-        headerSize -= len;
+        universal_tmp = len;
+        remainingHeaderBytes -= 3;
         char value[256];
-        size_t tmp = len;
-        if(tmp > 254) tmp = 254;
-        memcpy(value, (data + 7), tmp);
-        value[tmp+1] = 0;
+        if(len > 249) {len = 249;   }
+        memcpy(value, (data + 7), len);
+        value[len + 1] = 0;
         m_chbuf[0] = 0;
+        if(startsWith(frameid, "PIC")) { // image embedded in header
+            if(getDatamode() == AUDIO_LOCALFILE){
+                APIC_seen = true;                       // #460
+                APIC_pos = id3Size - remainingHeaderBytes;
+                APIC_size = universal_tmp;
+                if(m_f_Log) log_i("Attached picture seen at pos %d length %d", APIC_pos, APIC_size);
+            }
+        }
+        else{
+            if(!m_f_m3u8data) showID3Tag(frameid, value);
+        }
+        remainingHeaderBytes -= universal_tmp;
+        universal_tmp -= len;
 
-        if(!m_f_m3u8data) showID3Tag(frameid, value);
         if(len == 0) m_controlCounter = 98;
+        if(remainingHeaderBytes == 0) m_controlCounter = 98;
 
         return 3 + 3 + len;
     }
@@ -3006,13 +3025,13 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
 
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_controlCounter == 98){ // skip all ID3 metadata (mostly spaces)
-        if(headerSize > 256) {
-            headerSize -=256;
+        if(remainingHeaderBytes > 256) {
+            remainingHeaderBytes -=256;
             return 256;
         } // Throw it away
         else           {
             m_controlCounter = 99;
-            return headerSize;
+            return remainingHeaderBytes;
         } // Throw it away
     }
     // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -3048,7 +3067,7 @@ void VS1053::showID3Tag(const char* tag, const char* value){
     if(!strcmp(tag, "IPL")) sprintf(m_chbuf, "Involved people list: %s", value);
     if(!strcmp(tag, "PIC")) sprintf(m_chbuf, "Attached picture: %s", value);
     if(!strcmp(tag, "SLT")) sprintf(m_chbuf, "Synchronized lyric/text: %s", value);
-    // if(!strcmp(tag, "TAL")) sprintf(m_chbuf, "Album/Movie/Show title: %s", value);
+    if(!strcmp(tag, "TAL")) sprintf(m_chbuf, "Album/Movie/Show title: %s", value);
     if(!strcmp(tag, "TBP")) sprintf(m_chbuf, "BPM (Beats Per Minute): %s", value);
     if(!strcmp(tag, "TCM")) sprintf(m_chbuf, "Composer: %s", value);
     if(!strcmp(tag, "TCO")) sprintf(m_chbuf, "Content type: %s", value);
