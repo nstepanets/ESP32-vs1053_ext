@@ -33,6 +33,7 @@ extern __attribute__((weak)) void vs1053_showstation(const char*);
 extern __attribute__((weak)) void vs1053_showstreaminfo(const char*);
 extern __attribute__((weak)) void vs1053_id3data(const char*); //ID3 metadata
 extern __attribute__((weak)) void vs1053_id3image(File& file, const size_t pos, const size_t size); //ID3 metadata image
+extern __attribute__((weak)) void vs1053_id3lyrics(File& file, const size_t pos, const size_t size); //ID3 metadata lyrics
 extern __attribute__((weak)) void vs1053_eof_mp3(const char*);
 extern __attribute__((weak)) void vs1053_eof_speech(const char*);
 extern __attribute__((weak)) void vs1053_bitrate(const char*);
