@@ -3005,6 +3005,7 @@ int VS1053::read_ID3_Header(uint8_t *data, size_t len) {
 
         if(// any lyrics embedded in file, passing it to external function
             startsWith(frameid, "SYLT")
+            || startsWith(frameid, "TXXX")
             || startsWith(frameid, "USLT")
         ) {
             if(getDatamode() == AUDIO_LOCALFILE){
