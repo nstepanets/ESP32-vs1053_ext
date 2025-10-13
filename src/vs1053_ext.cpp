@@ -1934,7 +1934,7 @@ bool VS1053::parseHttpResponseHeader() { // this is the response to a GET / requ
     if(getDatamode() != HTTP_RESPONSE_HEADER) return false;
     if(_client->available() == 0)  return false;
 
-    char rhl[512]; // responseHeaderline
+    char rhl[512] = {0}; // responseHeaderline
     bool ct_seen = false;
     uint32_t ctime = millis();
     uint32_t timeout = 2500; // ms
