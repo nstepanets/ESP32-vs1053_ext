@@ -39,6 +39,7 @@ extern __attribute__((weak)) void vs1053_eof_speech(const char*);
 extern __attribute__((weak)) void vs1053_bitrate(const char*);
 extern __attribute__((weak)) void vs1053_commercial(const char*);
 extern __attribute__((weak)) void vs1053_icyurl(const char*);
+extern __attribute__((weak)) void vs1053_icylogo(const char*);
 extern __attribute__((weak)) void vs1053_icydescription(const char*);
 extern __attribute__((weak)) void vs1053_lasthost(const char*);
 extern __attribute__((weak)) void vs1053_eof_stream(const char*); // The webstream comes to an end
