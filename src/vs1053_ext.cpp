@@ -768,8 +768,6 @@ void VS1053::processWebStream() {
     const uint16_t  maxFrameSize = InBuff.getMaxBlockSize();    // every mp3/aac frame is not bigger
     static bool     f_stream;                                   // first audio data received
     static uint32_t chunkSize;                                  // chunkcount read from stream
-    static uint32_t muteTime;
-    static bool     f_mute;
 
     // first call, set some values to default  - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_f_firstCall) { // runs only ont time per connection, prepare for start
@@ -778,7 +776,6 @@ void VS1053::processWebStream() {
         chunkSize = 0;
         m_metacount = m_metaint;
         readMetadata(0, true); // reset all static vars
-        f_mute = false;
     }
 
     if(getDatamode() != AUDIO_DATA) return;              // guard
@@ -814,8 +811,6 @@ void VS1053::processWebStream() {
 
         if(InBuff.bufferFilled() > maxFrameSize && !f_stream) {  // waiting for buffer filled
             f_stream = true;  // ready to play the audio data
-            muteTime = millis();
-            f_mute = true;
             AUDIO_INFO("stream ready");
         }
         if(!f_stream) return;
@@ -831,9 +826,6 @@ void VS1053::processWebStream() {
 
     // play audio data - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(f_stream){
-        if(f_mute) {
-            if((muteTime + 200) < millis()) {setVolume(m_vol); f_mute = false;}
-        }
         static uint8_t cnt = 0;
         cnt++;
         if(cnt == 3){playAudioData(); cnt = 0;}
@@ -854,8 +846,6 @@ void VS1053::processWebStreamTS() {
     static uint8_t  ts_packetPtr = 0;
     const uint8_t   ts_packetsize = 188;
     static size_t   chunkSize = 0;
-    static uint32_t muteTime;
-    static bool     f_mute;
 
     // first call, set some values to default - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_f_firstCall) { // runs only ont time per connection, prepare for start
@@ -868,7 +858,6 @@ void VS1053::processWebStreamTS() {
         ts_packetPtr = 0;
         m_controlCounter = 0;
         m_f_firstCall = false;
-        f_mute = false;
     }
 
     if(getDatamode() != AUDIO_DATA) return;        // guard
@@ -942,8 +931,6 @@ void VS1053::processWebStreamTS() {
         if(InBuff.bufferFilled() > maxFrameSize && !f_stream) {  // waiting for buffer filled
             f_stream = true;  // ready to play the audio data
             uint16_t filltime = millis() - m_t0;
-            muteTime = millis();
-            f_mute = true;
             if(m_f_Log) AUDIO_INFO("stream ready");
             if(m_f_Log) AUDIO_INFO("buffer filled in %d ms", filltime);
         }
@@ -952,9 +939,6 @@ void VS1053::processWebStreamTS() {
 
     // play audio data - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(f_stream){
-        if(f_mute) {
-            if((muteTime + 200) < millis()) {setVolume(m_vol); f_mute = false;}
-        }
         static uint8_t cnt = 0;
         cnt++;
         if(cnt == 1){playAudioData(); cnt = 0;} // aac only
@@ -975,8 +959,6 @@ void VS1053::processWebStreamHLS() {
     static uint16_t ID3WritePtr;
     static uint16_t ID3ReadPtr;
     static uint8_t* ID3Buff;
-    static uint32_t muteTime;
-    static bool     f_mute;
 
     // first call, set some values to default - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_f_firstCall) { // runs only ont time per connection, prepare for start
@@ -991,7 +973,6 @@ void VS1053::processWebStreamHLS() {
         firstBytes = true;
         ID3Buff = (uint8_t*)malloc(ID3BuffSize);
         m_controlCounter = 0;
-        f_mute = false;
     }
 
     if(getDatamode() != AUDIO_DATA) return;        // guard
@@ -1073,9 +1054,6 @@ void VS1053::processWebStreamHLS() {
 
     // play audio data - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(f_stream){
-        if(f_mute) {
-            if((muteTime + 200) < millis()) {setVolume(m_vol); f_mute = false;}
-        }
         static uint8_t cnt = 0;
         cnt++;
         if(cnt == 1){playAudioData(); cnt = 0;} // aac only
@@ -1091,8 +1069,6 @@ void VS1053::processWebFile(){
     static uint32_t byteCounter;                                // count received data
     static uint32_t chunkSize;                                  // chunkcount read from stream
     static size_t   audioDataCount;                             // counts the decoded audiodata only
-    static uint32_t muteTime;
-    static bool     f_mute;
 
     // first call, set some values to default - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(m_f_firstCall) { // runs only ont time per connection, prepare for start
@@ -1103,7 +1079,6 @@ void VS1053::processWebFile(){
         byteCounter = 0;
         chunkSize = 0;
         audioDataCount = 0;
-        f_mute = false;
     }
 
     if(!m_contentlength && !m_f_tts) {log_e("webfile without contentlength!"); stopSong(); return;} // guard
@@ -1138,8 +1113,6 @@ void VS1053::processWebFile(){
 
     if(InBuff.bufferFilled() > maxFrameSize && !f_stream) {  // waiting for buffer filled
         f_stream = true;  // ready to play the audio data
-        muteTime = millis();
-        f_mute = true;
         uint16_t filltime = millis() - m_t0;
         if(m_f_Log) AUDIO_INFO("stream ready\nbuffer filled in %d ms", filltime);
     }
@@ -1205,9 +1178,6 @@ void VS1053::processWebFile(){
 
     // play audio data - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     if(f_stream){
-         if(f_mute) {
-            if((muteTime + 200) < millis()) {setVolume(m_vol); f_mute = false;}
-        }
         static uint8_t cnt = 0;
         uint8_t compression;
         if(m_codec == CODEC_WAV)  compression = 1;
