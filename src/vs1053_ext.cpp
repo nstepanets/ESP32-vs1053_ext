@@ -146,7 +146,7 @@ VS1053::VS1053(uint8_t _cs_pin, uint8_t _dcs_pin, uint8_t _dreq_pin, uint8_t spi
     cs_pin   = _cs_pin;
 
     spi_VS1053 = new SPIClass(spi);
-    spi_VS1053->begin(sclk, miso, mosi, -1);
+    spi_VS1053->begin();
 
 #ifdef AUDIO_LOG
     m_f_Log = true;
