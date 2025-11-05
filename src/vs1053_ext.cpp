@@ -337,7 +337,6 @@ void VS1053::begin(){
     // when playing MP3.  You can modify the board, but there is a more elegant way:
     wram_write(0xC017, 3);                                  // GPIO DDR=3
     wram_write(0xC019, 0);                                  // GPIO ODATA=0
-    // printDetails("After test loop");
     softReset();                                            // Do a soft reset
 
     // Check VS10xx type: SS_VER is 0 for VS1001, 1 for VS1011, 2 for VS1002, 3 for VS1003,
@@ -477,6 +476,14 @@ void VS1053::softReset()
 void VS1053::printDetails(const char* str){
 
     if(strlen(str) && vs1053_info) vs1053_info(str);
+
+    const uint16_t chipNumber[16] = {0, 0, 0, 1003, 1053, 0, 1063, 0, 1073, 0, 0, 0, 0, 0, 0, 0};
+    if (ssVer < 16 && chipNumber[ssVer]) {
+        sprintf(m_chbuf, "Chip is VS%d", chipNumber[ssVer]);
+    } else {
+        sprintf(m_chbuf, "Unknown VS10xx SCI_MODE field SS_VER = %d", ssVer);
+    }
+    if (vs1053_info) vs1053_info(m_chbuf);
 
     char decbuf[16][6];
     char hexbuf[16][5];
