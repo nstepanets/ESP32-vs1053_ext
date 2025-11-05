@@ -387,28 +387,44 @@ void VS1053::begin(){
  * See data patches data sheet VU meter for details.
  */
 void VS1053::setVUmeter(bool enable) {
+    uint16_t status = 0;
+
     if(ssVer == 4 && VS_PATCH_ENABLE) {
-        uint16_t status = read_register(SCI_STATUS);
+        status = read_register(SCI_STATUS);
         if(status==0) {
             Serial.println("VS1053 Error: Unable to write SCI_STATUS");
             m_f_VUmeter = false;
             return;
         }
-        if (enable) {
-            write_register(SCI_STATUS, status | _BV(9));
-            m_f_VUmeter = true;
-        } else {
-            write_register(SCI_STATUS, status & ~(_BV(9)));
-            m_f_VUmeter = false;
-        }
+        status = enable ? (status | _BV(9)) : (status & ~(_BV(9)));
+        write_register(SCI_STATUS, status);
+    } else if (ssVer == 6 || ssVer == 8) {
+        status = wram_read(0x1e09);         // PAR_PLAY_MODE
+        status = enable ? (status | _BV(2)) : (status & ~(_BV(2)));
+        wram_write(0x1e09, status);
+    } else {
+        return;
     }
+    m_f_VUmeter = enable;
 }
 //---------------------------------------------------------------------------------------------------------------------
 uint16_t VS1053::getVUlevel() {
     if(!m_f_VUmeter) return 0;
-    uint16_t vum = read_register(SCI_AICTRL3);  // returns the values in 1 dB resolution from 0 (lowest) 95 (highest)
-    uint8_t right = vum >> 8;                   // MSB left channel
-    uint8_t left  = vum & 0x00FF;               // LSB left channel
+
+    uint16_t vum = 0;
+    uint8_t right = 0;
+    uint8_t left = 0;
+
+    if (ssVer == 4 && VS_PATCH_ENABLE) {    // VS1053 chip:
+        vum = read_register(SCI_AICTRL3);   // returns the values in 1 dB resolution from 0 (lowest) 95 (highest)
+        right = vum >> 8;                   // MSB left channel
+        left  = vum & 0x00FF;               // LSB left channel
+    } else if (ssVer == 6 || ssVer == 8) {  // VS1063 or VS1073 chip:
+        vum = wram_read(0x1E0C);            // returns the values in 3 dB steps from 0 to 32
+        left = vum >> 8;
+        right = vum & 0xFF;
+    }
+
     right = map(right, 0, 95, 0, 127);          // expand the range from 96 to 128 steps
     left  = map(left,  0, 95, 0 ,127);
     return (left << 8) + right;
