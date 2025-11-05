@@ -332,6 +332,7 @@ public:
     size_t   bufferFilled();
     size_t   bufferFree();
     void     loadUserCode();
+    void     setVUmeter(bool enable=true);
     int getCodec() {return m_codec;}
     const char *getCodecname() {return codecname[m_codec];}
 

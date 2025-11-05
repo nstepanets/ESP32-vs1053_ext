@@ -372,11 +372,34 @@ void VS1053::begin(){
 
     if (VS_PATCH_ENABLE) loadUserCode(); // flac patch, does not work with all boards, try it
 
+    //set vu meter
+    setVUmeter();
+}
+//---------------------------------------------------------------------------------------------------------------------
+/**
+ * \brief enable VSdsp VU Meter
+ *
+ * \param[in] enable when set will enable the VU meter
+ *
+ * Writes the SS_VU_ENABLE bit of the SCI_STATUS register to enable VU meter on
+ * board to the VSdsp.
+ *
+ * See data patches data sheet VU meter for details.
+ */
+void VS1053::setVUmeter(bool enable) {
     if(ssVer == 4 && VS_PATCH_ENABLE) {
         uint16_t status = read_register(SCI_STATUS);
-        if(status) {
+        if(status==0) {
+            Serial.println("VS1053 Error: Unable to write SCI_STATUS");
+            m_f_VUmeter = false;
+            return;
+        }
+        if (enable) {
             write_register(SCI_STATUS, status | _BV(9));
             m_f_VUmeter = true;
+        } else {
+            write_register(SCI_STATUS, status & ~(_BV(9)));
+            m_f_VUmeter = false;
         }
     }
 }
