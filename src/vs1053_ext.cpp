@@ -8,7 +8,9 @@
 
 #include "vs1053_ext.h"
 
-#define LOAD_VS0153_PLUGIN  // load patch (FLAC and VU meter)
+#ifndef VS_PATCH_ENABLE
+#define VS_PATCH_ENABLE  true // load patch (FLAC and VU meter)
+#endif
 
 //---------------------------------------------------------------------------------------------------------------------
 AudioBuffer::AudioBuffer(size_t maxBlockSize) {
@@ -352,17 +354,15 @@ void VS1053::begin(){
     await_data_request();
     m_endFillByte = wram_read(0x1E06) & 0xFF;
 
-    #ifdef LOAD_VS0153_PLUGIN
-        loadUserCode(); // flac patch, does not work with all boards, try it
-        m_f_VUmeter = true;
-    #endif
+    if (VS_PATCH_ENABLE) loadUserCode(); // flac patch, does not work with all boards, try it
 
-    uint16_t status = read_register(SCI_STATUS);
-    if(status){
-        write_register(SCI_STATUS, status | _BV(9));
-        m_f_VUmeter = true;
+    if(ssVer == 4 && VS_PATCH_ENABLE) {
+        uint16_t status = read_register(SCI_STATUS);
+        if(status) {
+            write_register(SCI_STATUS, status | _BV(9));
+            m_f_VUmeter = true;
+        }
     }
-
 }
 //---------------------------------------------------------------------------------------------------------------------
 uint16_t VS1053::getVUlevel() {
