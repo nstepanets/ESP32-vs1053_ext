@@ -2718,26 +2718,26 @@ bool VS1053::httpPrint(const char* host) {
 }
 //---------------------------------------------------------------------------------------------------------------------
 void VS1053::loadUserCode(void) {
-  if(ssVer != 4) return;
-  int i = 0;
+    if(ssVer != 4) return;
+    int i = 0;
 
-  while (i<sizeof(flac_plugin)/sizeof(flac_plugin[0])) {
-    unsigned short addr, n, val;
-    addr = flac_plugin[i++];
-    n = flac_plugin[i++];
-    if (n & 0x8000U) { /* RLE run, replicate n samples */
-      n &= 0x7FFF;
-      val = flac_plugin[i++];
-      while (n--) {
-        write_register(addr, val);
-      }
-    } else {           /* Copy run, copy n samples */
-      while (n--) {
-        val = flac_plugin[i++];
-        write_register(addr, val);
-      }
+    while (i<sizeof(flac_plugin)/sizeof(flac_plugin[0])) {
+        unsigned short addr, n, val;
+        addr = flac_plugin[i++];
+        n = flac_plugin[i++];
+        if (n & 0x8000U) { /* RLE run, replicate n samples */
+            n &= 0x7FFF;
+            val = flac_plugin[i++];
+            while (n--) {
+                write_register(addr, val);
+            }
+        } else {           /* Copy run, copy n samples */
+            while (n--) {
+                val = flac_plugin[i++];
+                write_register(addr, val);
+            }
+        }
     }
-  }
 }
 
 //---------------------------------------------------------------------------------------------------------------------
