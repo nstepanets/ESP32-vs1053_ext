@@ -264,6 +264,8 @@ size_t VS1053::sendBytes(uint8_t* data, size_t len){
         bytesDecoded += chunk_length;
     }
     data_mode_off();
+    // It is important to collect endFillByte while still in normal playback.
+    m_endFillByte = wram_read(0x1E06) & 0xFF;
     return bytesDecoded;
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -368,7 +370,7 @@ void VS1053::begin(){
     write_register(SCI_MODE, _BV (SM_SDINEW) | _BV(SM_LINE1));
 
     await_data_request();
-    m_endFillByte = wram_read(0x1E06) & 0xFF;
+    //m_endFillByte = wram_read(0x1E06) & 0xFF;
 
     if (VS_PATCH_ENABLE) loadUserCode(); // flac patch, does not work with all boards, try it
 
@@ -472,10 +474,6 @@ void VS1053::setTone(uint8_t *rtone){                       // Set bass/treble (
 //---------------------------------------------------------------------------------------------------------------------
 uint8_t VS1053::getVolume(){                                // Get the currenet volume setting.
     return m_vol;
-}
-//----------------------------------------------------------------------------------------------------------------------
-void VS1053::startSong(){
-    sdi_send_fillers(vs1053_chunk_size * 54);
 }
 //---------------------------------------------------------------------------------------------------------------------
 void VS1053::stopSong(){
